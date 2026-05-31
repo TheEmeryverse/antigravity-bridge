@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   let isStreaming = false;
   let activeProjectPath = null;
+  let sshHost = 'username@localhost';
+  let userHome = '/Users/username';
 
   // DOM Elements
   const sidebar = document.getElementById('sidebar');
@@ -53,6 +55,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatInput = document.getElementById('chatInput');
   const continueToggle = document.getElementById('continueToggle');
   const submitBtn = document.getElementById('submitBtn');
+  
+  const activeProjectBadge = document.getElementById('activeProjectBadge');
+  const activeProjectName = document.getElementById('activeProjectName');
+  const shellPromptContainer = document.getElementById('shellPromptContainer');
+
+  // Workspace Selector Modal DOM Elements
+  const clearProjectBtn = document.getElementById('clearProjectBtn');
+  const workspaceModal = document.getElementById('workspaceModal');
+  const closeWorkspaceModal = document.getElementById('closeWorkspaceModal');
+  const workspaceSelectBtn = document.getElementById('workspaceSelectBtn');
+  const workspaceDeselectBtn = document.getElementById('workspaceDeselectBtn');
+  const workspaceStatusCard = document.getElementById('workspaceStatusCard');
+  const workspaceCardIcon = document.getElementById('workspaceCardIcon');
+  const workspaceCardTitle = document.getElementById('workspaceCardTitle');
+  const workspaceCardDesc = document.getElementById('workspaceCardDesc');
+  
+  const modalProjectsList = document.getElementById('modalProjectsList');
+  const modalNewProjectName = document.getElementById('modalNewProjectName');
+  const modalCreateProjectBtn = document.getElementById('modalCreateProjectBtn');
+  const modalGlobalModeBtn = document.getElementById('modalGlobalModeBtn');
 
   // Configure Marked for Markdown rendering safely
   if (typeof marked !== 'undefined' && marked.setOptions) {
@@ -80,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Markdown parsing failed:', e);
       }
     }
-    // Safe HTML fallback to prevent script execution while retaining format
     return content
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -139,11 +160,142 @@ document.addEventListener('DOMContentLoaded', () => {
       if (connectionPill) {
         connectionPill.textContent = data.mode === 'ssh' ? 'SSH Bridge Active' : 'Local CLI Mode';
       }
+      
+      // Update config variables
+      sshHost = data.host;
+      userHome = data.home;
+      
+      // Update shell user string in prompt
+      const shellUserElement = document.querySelector('.shell-user');
+      if (shellUserElement) {
+        shellUserElement.textContent = data.host;
+      }
+      
       return data;
     } catch (error) {
       console.error('Error fetching config settings:', error);
       return null;
     }
+  }
+
+  // Copy Code Button Helper
+  function addCopyButtons(container) {
+    if (!container) return;
+    const preBlocks = container.querySelectorAll('pre');
+    preBlocks.forEach(pre => {
+      if (pre.querySelector('.copy-code-btn')) return;
+
+      const codeBlock = pre.querySelector('code');
+      if (!codeBlock) return;
+
+      const btn = document.createElement('button');
+      btn.className = 'copy-code-btn';
+      btn.type = 'button';
+      btn.innerHTML = '<i data-lucide="copy" style="width: 12px; height: 12px;"></i> <span>Copy</span>';
+
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const codeText = codeBlock.textContent;
+        try {
+          await navigator.clipboard.writeText(codeText);
+          btn.classList.add('copied');
+          btn.querySelector('span').textContent = 'Copied';
+          const icon = btn.querySelector('i');
+          if (icon) icon.setAttribute('data-lucide', 'check');
+          updateIcons();
+
+          setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.querySelector('span').textContent = 'Copy';
+            if (icon) icon.setAttribute('data-lucide', 'copy');
+            updateIcons();
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy text:', err);
+        }
+      });
+
+      pre.appendChild(btn);
+    });
+    updateIcons();
+  }
+
+  // Update UI relative to active project selection
+  function updateActiveProjectUI() {
+    let relativePath = '~';
+    const folderName = activeProjectPath ? activeProjectPath.split('/').pop() : null;
+
+    if (activeProjectPath) {
+      if (userHome && activeProjectPath.startsWith(userHome)) {
+        relativePath = activeProjectPath.replace(userHome, '~');
+      } else {
+        relativePath = activeProjectPath;
+      }
+      
+      // Update header badge
+      if (activeProjectName) activeProjectName.textContent = folderName;
+      if (activeProjectBadge) {
+        activeProjectBadge.classList.add('project-active');
+        activeProjectBadge.title = `Active Workspace: ${relativePath} (Click to switch)`;
+      }
+      if (clearProjectBtn) clearProjectBtn.style.display = 'flex';
+      
+      // Set header icon to folder
+      const activeProjectIcon = document.getElementById('activeProjectIcon');
+      if (activeProjectIcon) activeProjectIcon.setAttribute('data-lucide', 'folder');
+
+      // Update Welcome Screen Workspace Status Card
+      if (workspaceStatusCard) workspaceStatusCard.classList.add('active');
+      if (workspaceCardIcon) {
+        workspaceCardIcon.innerHTML = '<i data-lucide="folder"></i>';
+      }
+      if (workspaceCardTitle) workspaceCardTitle.textContent = `Workspace: ${folderName}`;
+      if (workspaceCardDesc) {
+        workspaceCardDesc.textContent = relativePath;
+        workspaceCardDesc.title = activeProjectPath;
+      }
+      if (workspaceDeselectBtn) workspaceDeselectBtn.style.display = 'flex';
+      
+    } else {
+      // Global mode
+      if (activeProjectName) activeProjectName.textContent = 'Global Mode';
+      if (activeProjectBadge) {
+        activeProjectBadge.classList.remove('project-active');
+        activeProjectBadge.title = 'Global Mode: prompts run in user home (Click to select workspace)';
+      }
+      if (clearProjectBtn) clearProjectBtn.style.display = 'none';
+      
+      // Set header icon to globe
+      const activeProjectIcon = document.getElementById('activeProjectIcon');
+      if (activeProjectIcon) activeProjectIcon.setAttribute('data-lucide', 'globe');
+
+      // Update Welcome Screen Workspace Status Card
+      if (workspaceStatusCard) workspaceStatusCard.classList.remove('active');
+      if (workspaceCardIcon) {
+        workspaceCardIcon.innerHTML = '<i data-lucide="globe"></i>';
+      }
+      if (workspaceCardTitle) workspaceCardTitle.textContent = 'Global Terminal Mode';
+      if (workspaceCardDesc) {
+        workspaceCardDesc.textContent = 'Prompts run in user home directory. Files are not bound to a workspace.';
+        workspaceCardDesc.removeAttribute('title');
+      }
+      if (workspaceDeselectBtn) workspaceDeselectBtn.style.display = 'none';
+    }
+
+    // Update shell prompt path
+    const shellPath = document.querySelector('.shell-path');
+    if (shellPath) shellPath.textContent = relativePath;
+
+    // Synchronize active highlights in sidebar and modal project list items
+    document.querySelectorAll('.project-item').forEach(el => {
+      if (el.dataset.path === activeProjectPath) {
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    });
+
+    updateIcons();
   }
 
   // Auto-resize input textarea
@@ -234,58 +386,112 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Fetch and Render Projects List
   async function fetchProjects() {
-    if (!projectsList) return;
-    projectsList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">Loading...</div>';
+    const listLoadingHtml = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">Loading...</div>';
+    if (projectsList) projectsList.innerHTML = listLoadingHtml;
+    if (modalProjectsList) modalProjectsList.innerHTML = listLoadingHtml;
 
     try {
       const response = await fetch('/api/projects');
       if (!response.ok) throw new Error('Failed to load projects');
       const projects = await response.json();
 
-      projectsList.innerHTML = '';
-      if (projects.length === 0) {
-        projectsList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">No projects found</div>';
-        return;
+      // Render Sidebar projects
+      if (projectsList) {
+        projectsList.innerHTML = '';
+        if (projects.length === 0) {
+          projectsList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">No projects found</div>';
+        } else {
+          projects.forEach(proj => {
+            const item = createProjectItemElement(proj, 'sidebar');
+            projectsList.appendChild(item);
+          });
+        }
       }
 
-      projects.forEach(proj => {
-        const item = document.createElement('div');
-        item.className = `project-item ${proj.path === activeProjectPath ? 'active' : ''}`;
-        item.dataset.path = proj.path;
-
-        const icon = document.createElement('span');
-        icon.className = 'project-icon';
-        icon.innerHTML = '<i data-lucide="folder" style="width: 16px; height: 16px;"></i>';
-
-        const name = document.createElement('span');
-        name.className = 'project-name';
-        name.textContent = proj.name;
-
-        item.appendChild(icon);
-        item.appendChild(name);
-
-        item.addEventListener('click', () => {
-          // Toggle project selection
-          if (activeProjectPath === proj.path) {
-            activeProjectPath = null;
-            item.classList.remove('active');
-          } else {
-            activeProjectPath = proj.path;
-            // Clear other active projects
-            document.querySelectorAll('.project-item').forEach(el => el.classList.remove('active'));
-            item.classList.add('active');
-          }
-          updateIcons();
-        });
-
-        projectsList.appendChild(item);
-      });
+      // Render Modal projects
+      if (modalProjectsList) {
+        modalProjectsList.innerHTML = '';
+        if (projects.length === 0) {
+          modalProjectsList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0; grid-column: 1/-1;">No projects found</div>';
+        } else {
+          projects.forEach(proj => {
+            const item = createProjectItemElement(proj, 'modal');
+            modalProjectsList.appendChild(item);
+          });
+        }
+      }
+      
     } catch (e) {
       console.error(e);
-      projectsList.innerHTML = '<div style="text-align: center; color: var(--error); font-size: 0.8rem; padding: 10px 0;">Error loading projects</div>';
+      const errorHtml = '<div style="text-align: center; color: var(--error); font-size: 0.8rem; padding: 10px 0;">Error loading projects</div>';
+      if (projectsList) projectsList.innerHTML = errorHtml;
+      if (modalProjectsList) modalProjectsList.innerHTML = errorHtml;
     }
 
     updateIcons();
+  }
+
+  // Helper to create project elements
+  function createProjectItemElement(proj, context) {
+    const item = document.createElement('div');
+    item.className = `project-item ${proj.path === activeProjectPath ? 'active' : ''}`;
+    item.dataset.path = proj.path;
+
+    const icon = document.createElement('span');
+    icon.className = 'project-icon';
+    icon.innerHTML = '<i data-lucide="folder" style="width: 16px; height: 16px;"></i>';
+
+    const name = document.createElement('span');
+    name.className = 'project-name';
+    name.textContent = proj.name;
+
+    item.appendChild(icon);
+    item.appendChild(name);
+
+    item.addEventListener('click', () => {
+      if (activeProjectPath === proj.path) {
+        activeProjectPath = null; // deselect
+      } else {
+        activeProjectPath = proj.path;
+        // Auto-close sidebar on mobile
+        if (sidebar && context === 'sidebar') {
+          sidebar.classList.remove('open');
+        }
+      }
+      updateActiveProjectUI();
+      
+      // Auto-close modal if clicked inside modal
+      if (context === 'modal' && workspaceModal) {
+        workspaceModal.style.display = 'none';
+      }
+    });
+
+    return item;
+  }
+
+  // Refactored unified create project function
+  async function createNewProjectFolder(name) {
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name })
+      });
+      const data = await response.json();
+      if (response.ok && data.status === 'ok') {
+        // Select the newly created project automatically
+        activeProjectPath = data.path;
+        await fetchProjects();
+        updateActiveProjectUI();
+      } else {
+        alert(`Failed to create project: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Error creating project:', err);
+      alert('Failed to create project. Check console for details.');
+    }
   }
 
   // Create Project Click Event
@@ -294,30 +500,83 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       const name = prompt('Enter new project directory name:');
       if (!name) return;
-
       const trimmedName = name.trim();
       if (trimmedName === '') return;
+      await createNewProjectFolder(trimmedName);
+    });
+  }
 
-      try {
-        const response = await fetch('/api/projects', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ name: trimmedName })
-        });
-        const data = await response.json();
-        if (response.ok && data.status === 'ok') {
-          // Select the newly created project automatically
-          activeProjectPath = data.path;
-          fetchProjects();
-        } else {
-          alert(`Failed to create project: ${data.error || 'Unknown error'}`);
-        }
-      } catch (err) {
-        console.error('Error creating project:', err);
-        alert('Failed to create project. Check console for details.');
+  // Create project logic from Modal
+  if (modalCreateProjectBtn && modalNewProjectName) {
+    modalCreateProjectBtn.addEventListener('click', async () => {
+      const name = modalNewProjectName.value.trim();
+      if (!name) return;
+      await createNewProjectFolder(name);
+      modalNewProjectName.value = '';
+      if (workspaceModal) workspaceModal.style.display = 'none';
+    });
+    
+    // Add Enter key support to modal project name input
+    modalNewProjectName.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        modalCreateProjectBtn.click();
       }
+    });
+  }
+
+  // Workspace Modal Events
+  if (activeProjectBadge) {
+    activeProjectBadge.addEventListener('click', (e) => {
+      if (e.target.closest('#clearProjectBtn')) return;
+      if (workspaceModal) {
+        workspaceModal.style.display = 'flex';
+        fetchProjects(); // refresh projects
+      }
+    });
+  }
+
+  if (clearProjectBtn) {
+    clearProjectBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      activeProjectPath = null;
+      updateActiveProjectUI();
+    });
+  }
+
+  if (closeWorkspaceModal && workspaceModal) {
+    closeWorkspaceModal.addEventListener('click', () => {
+      workspaceModal.style.display = 'none';
+    });
+  }
+  
+  if (workspaceModal) {
+    workspaceModal.addEventListener('click', (e) => {
+      if (e.target === workspaceModal) {
+        workspaceModal.style.display = 'none';
+      }
+    });
+  }
+
+  if (modalGlobalModeBtn) {
+    modalGlobalModeBtn.addEventListener('click', () => {
+      activeProjectPath = null;
+      updateActiveProjectUI();
+      if (workspaceModal) workspaceModal.style.display = 'none';
+    });
+  }
+
+  // Welcome page actions
+  if (workspaceSelectBtn && workspaceModal) {
+    workspaceSelectBtn.addEventListener('click', () => {
+      workspaceModal.style.display = 'flex';
+      fetchProjects();
+    });
+  }
+
+  if (workspaceDeselectBtn) {
+    workspaceDeselectBtn.addEventListener('click', () => {
+      activeProjectPath = null;
+      updateActiveProjectUI();
     });
   }
 
@@ -400,6 +659,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     
+    addCopyButtons(bubble);
+    
     return bubble;
   }
 
@@ -478,6 +739,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Prepare Assistant bubble in UI
       const assistantBubble = appendMessageUI('assistant', '');
+      if (assistantBubble) {
+        assistantBubble.classList.add('blinking-cursor');
+      }
       let assistantText = '';
 
       // Setup Server-Sent Events stream URL
@@ -540,6 +804,12 @@ document.addEventListener('DOMContentLoaded', () => {
           eventSource.close();
         }
         
+        // Remove blinking cursor class and add copy buttons
+        if (assistantBubble) {
+          assistantBubble.classList.remove('blinking-cursor');
+          addCopyButtons(assistantBubble);
+        }
+        
         // Save assistant message to memory safely
         const freshConv = conversations.find(c => c.id === activeConversationId);
         if (freshConv) {
@@ -573,4 +843,5 @@ document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   renderConversationsList();
   fetchProjects();
+  updateActiveProjectUI();
 });

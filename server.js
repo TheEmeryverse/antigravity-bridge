@@ -247,7 +247,9 @@ app.get('/api/config', (req, res) => {
   res.json({
     host: CONNECTION_MODE === 'ssh' ? `${SSH_USER}@${SSH_HOST}` : 'localhost',
     cliPath: CLI_PATH,
-    mode: CONNECTION_MODE
+    mode: CONNECTION_MODE,
+    projectsDir: PROJECTS_DIR,
+    home: CONNECTION_MODE === 'ssh' ? `/Users/${SSH_USER}` : process.env.HOME
   });
 });
 

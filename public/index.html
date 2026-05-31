@@ -56,7 +56,7 @@
           <!-- Projects list items injected here -->
         </div>
       </div>
-
+      
       <div class="history-container">
         <div class="section-title">Conversations</div>
         <div class="history-list" id="historyList">
@@ -92,6 +92,13 @@
             <i data-lucide="menu"></i>
           </button>
           <div class="header-title" id="headerChatTitle">New Chat</div>
+          <div class="active-project-badge" id="activeProjectBadge" title="Click to manage workspace">
+            <i data-lucide="globe" id="activeProjectIcon"></i>
+            <span id="activeProjectName">Global Mode</span>
+            <button class="active-project-badge-clear" id="clearProjectBtn" title="Disconnect workspace" style="display: none;">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
         </div>
         
         <div class="header-right">
@@ -100,7 +107,7 @@
           </button>
           <div class="active-connection-pill">
             <span class="pulse-ring"></span>
-            <span class="pill-text">M4 Mac Mini Bridge</span>
+            <span class="pill-text">Antigravity Remote</span>
           </div>
         </div>
       </header>
@@ -113,6 +120,29 @@
           <div class="welcome-hero">
             <h1 class="welcome-title">Antigravity <span class="gradient-text">Bridge</span></h1>
             <p class="welcome-subtitle">Access Antigravity 2.0 streaming from your remote instance securely anywhere.</p>
+          </div>
+
+          <!-- Workspace Status Banner -->
+          <div class="workspace-status-card" id="workspaceStatusCard">
+            <div class="status-card-header">
+              <div class="status-card-icon" id="workspaceCardIcon">
+                <i data-lucide="globe"></i>
+              </div>
+              <div class="status-card-info">
+                <div class="status-card-title" id="workspaceCardTitle">Global Terminal Mode</div>
+                <div class="status-card-desc" id="workspaceCardDesc">Prompts run in user home directory. Files are not bound to a workspace.</div>
+              </div>
+            </div>
+            <div class="status-card-actions">
+              <button class="action-btn" id="workspaceSelectBtn">
+                <i data-lucide="folder-open"></i>
+                <span>Choose Workspace</span>
+              </button>
+              <button class="action-btn secondary" id="workspaceDeselectBtn" style="display: none;">
+                <i data-lucide="log-out"></i>
+                <span>Disconnect Workspace</span>
+              </button>
+            </div>
           </div>
           
           <div class="suggestion-grid">
@@ -156,6 +186,9 @@
       <footer class="input-area-container">
         <form class="input-form" id="chatForm">
           <div class="textarea-wrapper">
+            <div class="shell-prompt-container" id="shellPromptContainer">
+              <span class="shell-user">hudson@192.168.1.129</span><span class="shell-colon">:</span><span class="shell-path">~</span><span class="shell-symbol">$</span> <span class="shell-cmd">agy</span>
+            </div>
             <textarea 
               id="chatInput" 
               placeholder="Ask Antigravity anything..." 
@@ -225,6 +258,42 @@
               <i data-lucide="info"></i>
               <p>These values are currently loaded from the host's <code>.env</code> file. To modify them, edit the file in your project folder and restart the bridge server.</p>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workspace Selector Modal -->
+    <div class="modal-overlay" id="workspaceModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Select Workspace</h2>
+          <button class="icon-btn close-modal-btn" id="closeWorkspaceModal" aria-label="Close modal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-group">
+            <h3>Choose Active Project Directory</h3>
+            <div class="modal-projects-list" id="modalProjectsList">
+              <!-- Dynamically populated project subdirs -->
+            </div>
+          </div>
+          
+          <div class="settings-group">
+            <h3>Create New Workspace Directory</h3>
+            <div class="create-project-input-group">
+              <input type="text" id="modalNewProjectName" placeholder="Enter folder name (e.g. backend-api)..." />
+              <button class="primary-btn" id="modalCreateProjectBtn">
+                <i data-lucide="plus"></i> Create
+              </button>
+            </div>
+          </div>
+          
+          <div class="settings-group">
+            <button class="danger-btn-outline" id="modalGlobalModeBtn">
+              <i data-lucide="globe"></i> Switch to Global Mode (No Workspace)
+            </button>
           </div>
         </div>
       </div>
