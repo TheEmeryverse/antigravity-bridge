@@ -1,12 +1,29 @@
-// Antigravity Bridge Client Logic
+// Antigravity Bridge Client Logic - Robust & Defensive Version
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Lucide Icons
-  lucide.createIcons();
+  // Safe helper to call Lucide icons
+  function updateIcons() {
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons();
+    }
+  }
+
+  updateIcons();
 
   // State Management
   let activeConversationId = null;
-  let conversations = JSON.parse(localStorage.getItem('ag_conversations')) || [];
+  let conversations = [];
+  try {
+    const saved = localStorage.getItem('ag_conversations');
+    conversations = saved ? JSON.parse(saved) : [];
+    if (!Array.isArray(conversations)) {
+      conversations = [];
+    }
+  } catch (e) {
+    console.error('Failed to parse conversations from localStorage:', e);
+    conversations = [];
+  }
+  
   let isStreaming = false;
 
   // DOM Elements
@@ -34,25 +51,86 @@ document.addEventListener('DOMContentLoaded', () => {
   const continueToggle = document.getElementById('continueToggle');
   const submitBtn = document.getElementById('submitBtn');
 
-  // Configure Marked for Markdown rendering
-  marked.setOptions({
-    breaks: true,
-    highlight: function (code, lang) {
-      if (Prism.languages[lang]) {
-        return Prism.highlight(code, Prism.languages[lang], lang);
-      }
-      return code;
+  // Configure Marked for Markdown rendering safely
+  if (typeof marked !== 'undefined' && marked.setOptions) {
+    try {
+      marked.setOptions({
+        breaks: true,
+        highlight: function (code, lang) {
+          if (typeof Prism !== 'undefined' && Prism.languages[lang]) {
+            return Prism.highlight(code, Prism.languages[lang], lang);
+          }
+          return code;
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to configure marked highlights:', e);
     }
-  });
+  }
 
-  // Load config details from backend
+  // Safe Markdown rendering fallback
+  function renderMarkdown(content) {
+    if (typeof marked !== 'undefined' && marked.parse) {
+      try {
+        return marked.parse(content);
+      } catch (e) {
+        console.error('Markdown parsing failed:', e);
+      }
+    }
+    // Safe HTML fallback to prevent script execution while retaining format
+    return content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+  }
+
+  // Check Connection Health
+  async function checkHealth() {
+    if (statusDot) statusDot.className = 'status-dot status-checking';
+    if (statusLabel) statusLabel.textContent = 'Checking Connection...';
+    if (modalStatusBox) modalStatusBox.className = 'modal-status-box';
+    if (modalStatusTitle) modalStatusTitle.textContent = 'Connecting...';
+    if (modalStatusDesc) modalStatusDesc.textContent = 'Checking connectivity...';
+
+    try {
+      const response = await fetch('/api/health');
+      const data = await response.json();
+      
+      const config = await loadConfig();
+      const targetLabel = config ? config.host : 'remote host';
+
+      if (response.ok && data.status === 'ok') {
+        if (statusDot) statusDot.className = 'status-dot status-online';
+        if (statusLabel) statusLabel.textContent = 'Connected';
+        if (modalStatusBox) modalStatusBox.className = 'modal-status-box online';
+        if (modalStatusTitle) modalStatusTitle.textContent = 'Active Bridge';
+        if (modalStatusDesc) modalStatusDesc.textContent = `Securely connected to ${targetLabel}`;
+      } else {
+        throw new Error(data.message || 'Offline');
+      }
+    } catch (error) {
+      if (statusDot) statusDot.className = 'status-dot status-offline';
+      if (statusLabel) statusLabel.textContent = 'Offline';
+      if (modalStatusBox) modalStatusBox.className = 'modal-status-box offline';
+      if (modalStatusTitle) modalStatusTitle.textContent = 'Connection Offline';
+      if (modalStatusDesc) modalStatusDesc.textContent = `Could not connect to remote host. Error: ${error.message}`;
+    }
+  }
+
+  // Load config details from backend dynamically
   async function loadConfig() {
     try {
       const response = await fetch('/api/config');
       const data = await response.json();
-      document.getElementById('sshTargetDisplay').textContent = data.host;
-      document.getElementById('cliPathDisplay').textContent = data.cliPath;
-      document.getElementById('modeDisplay').textContent = data.mode === 'ssh' ? 'SSH Tunnel' : 'Local Host';
+      
+      const sshTarget = document.getElementById('sshTargetDisplay');
+      const cliPath = document.getElementById('cliPathDisplay');
+      const mode = document.getElementById('modeDisplay');
+      
+      if (sshTarget) sshTarget.textContent = data.host;
+      if (cliPath) cliPath.textContent = data.cliPath;
+      if (mode) mode.textContent = data.mode === 'ssh' ? 'SSH Tunnel' : 'Local Host';
       
       const connectionPill = document.querySelector('.active-connection-pill .pill-text');
       if (connectionPill) {
@@ -65,68 +143,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Check Connection Health
-  async function checkHealth() {
-    statusDot.className = 'status-dot status-checking';
-    statusLabel.textContent = 'Checking Connection...';
-    modalStatusBox.className = 'modal-status-box';
-    modalStatusTitle.textContent = 'Connecting...';
-    
-    const config = await loadConfig();
-    const targetLabel = config ? config.host : 'remote host';
-    modalStatusDesc.textContent = `Checking network connectivity to ${targetLabel}...`;
-
-    try {
-      const response = await fetch('/api/health');
-      const data = await response.json();
-      
-      if (response.ok && data.status === 'ok') {
-        statusDot.className = 'status-dot status-online';
-        statusLabel.textContent = 'Connected';
-        modalStatusBox.className = 'modal-status-box online';
-        modalStatusTitle.textContent = 'Active Bridge';
-        modalStatusDesc.textContent = `Securely connected to ${targetLabel}`;
-      } else {
-        throw new Error(data.message || 'Offline');
-      }
-    } catch (error) {
-      statusDot.className = 'status-dot status-offline';
-      statusLabel.textContent = 'Offline';
-      modalStatusBox.className = 'modal-status-box offline';
-      modalStatusTitle.textContent = 'Connection Offline';
-      modalStatusDesc.textContent = `Could not connect to ${targetLabel}. Error: ${error.message}`;
-    }
+  // Auto-resize input textarea
+  if (chatInput) {
+    chatInput.addEventListener('input', () => {
+      chatInput.style.height = 'auto';
+      chatInput.style.height = (chatInput.scrollHeight - 20) + 'px';
+    });
   }
 
-  // Auto-resize input textarea
-  chatInput.addEventListener('input', () => {
-    chatInput.style.height = 'auto';
-    chatInput.style.height = (chatInput.scrollHeight - 20) + 'px';
-  });
-
   // Mobile Sidebar Toggle
-  menuBtn.addEventListener('click', () => sidebar.classList.add('open'));
-  closeSidebar.addEventListener('click', () => sidebar.classList.remove('open'));
+  if (menuBtn && sidebar) menuBtn.addEventListener('click', () => sidebar.classList.add('open'));
+  if (closeSidebar && sidebar) closeSidebar.addEventListener('click', () => sidebar.classList.remove('open'));
 
   // Configuration Modal Toggle
-  settingsToggle.addEventListener('click', () => {
-    settingsModal.style.display = 'flex';
-    checkHealth();
-  });
-  closeSettingsModal.addEventListener('click', () => settingsModal.style.display = 'none');
+  if (settingsToggle && settingsModal) {
+    settingsToggle.addEventListener('click', () => {
+      settingsModal.style.display = 'flex';
+      checkHealth();
+    });
+  }
+  if (closeSettingsModal && settingsModal) {
+    closeSettingsModal.addEventListener('click', () => settingsModal.style.display = 'none');
+  }
   
-  // Close modal if clicked outside
-  settingsModal.addEventListener('click', (e) => {
-    if (e.target === settingsModal) {
-      settingsModal.style.display = 'none';
-    }
-  });
+  if (settingsModal) {
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        settingsModal.style.display = 'none';
+      }
+    });
+  }
 
   // Test Connection Button click
-  refreshStatusBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    checkHealth();
-  });
+  if (refreshStatusBtn) {
+    refreshStatusBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      checkHealth();
+    });
+  }
 
   // Generate unique conversation ID
   function generateId() {
@@ -135,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load chats from history
   function renderConversationsList() {
+    if (!historyList) return;
     historyList.innerHTML = '';
     
     if (conversations.length === 0) {
@@ -165,13 +220,13 @@ document.addEventListener('DOMContentLoaded', () => {
       
       item.addEventListener('click', () => {
         loadConversation(conv.id);
-        sidebar.classList.remove('open'); // close sidebar on mobile
+        if (sidebar) sidebar.classList.remove('open'); // close sidebar on mobile
       });
 
       historyList.appendChild(item);
     });
 
-    lucide.createIcons();
+    updateIcons();
   }
 
   // Delete Conversation
@@ -192,15 +247,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!conv) return;
 
     activeConversationId = id;
-    headerChatTitle.textContent = conv.title;
+    if (headerChatTitle) headerChatTitle.textContent = conv.title;
     
-    welcomeScreen.style.display = 'none';
-    messagesList.style.display = 'flex';
-    messagesList.innerHTML = '';
+    if (welcomeScreen) welcomeScreen.style.display = 'none';
+    if (messagesList) {
+      messagesList.style.display = 'flex';
+      messagesList.innerHTML = '';
+    }
 
-    conv.messages.forEach(msg => {
-      appendMessageUI(msg.role, msg.content);
-    });
+    if (Array.isArray(conv.messages)) {
+      conv.messages.forEach(msg => {
+        appendMessageUI(msg.role, msg.content);
+      });
+    }
 
     renderConversationsList();
     scrollToBottom();
@@ -209,17 +268,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start New Conversation
   function newConversation() {
     activeConversationId = null;
-    headerChatTitle.textContent = 'New Chat';
-    welcomeScreen.style.display = 'flex';
-    messagesList.style.display = 'none';
-    messagesList.innerHTML = '';
+    if (headerChatTitle) headerChatTitle.textContent = 'New Chat';
+    if (welcomeScreen) welcomeScreen.style.display = 'flex';
+    if (messagesList) {
+      messagesList.style.display = 'none';
+      messagesList.innerHTML = '';
+    }
     renderConversationsList();
   }
 
-  newChatBtn.addEventListener('click', newConversation);
+  if (newChatBtn) newChatBtn.addEventListener('click', newConversation);
 
   // Append Message UI Element
   function appendMessageUI(role, content) {
+    if (!messagesList) return null;
+    
     const wrapper = document.createElement('div');
     wrapper.className = `message-wrapper ${role}`;
 
@@ -230,153 +293,186 @@ document.addEventListener('DOMContentLoaded', () => {
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
     
-    // Parse Markdown
-    bubble.innerHTML = marked.parse(content);
+    bubble.innerHTML = renderMarkdown(content);
     
     wrapper.appendChild(avatar);
     wrapper.appendChild(bubble);
     messagesList.appendChild(wrapper);
     
     // Highlight code blocks
-    Prism.highlightAllUnder(bubble);
+    if (typeof Prism !== 'undefined' && Prism.highlightAllUnder) {
+      try {
+        Prism.highlightAllUnder(bubble);
+      } catch (e) {
+        console.warn('Prism highlighting failed:', e);
+      }
+    }
     
     return bubble;
   }
 
   // Scroll Chat to Bottom
   function scrollToBottom() {
-    scrollAnchor.scrollIntoView({ behavior: 'smooth' });
+    if (scrollAnchor) {
+      scrollAnchor.scrollIntoView({ behavior: 'smooth' });
+    }
   }
 
   // Suggestion Cards Clicking
   document.querySelectorAll('.suggestion-card').forEach(card => {
     card.addEventListener('click', () => {
       const prompt = card.dataset.prompt;
-      chatInput.value = prompt;
-      chatInput.dispatchEvent(new Event('input')); // trigger resize
-      chatForm.dispatchEvent(new Event('submit'));
+      if (chatInput && chatForm) {
+        chatInput.value = prompt;
+        chatInput.dispatchEvent(new Event('input')); // trigger resize
+        chatForm.dispatchEvent(new Event('submit'));
+      }
     });
   });
 
   // Handle Form Submit
-  chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (isStreaming) return;
+  if (chatForm) {
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (isStreaming) return;
 
-    const prompt = chatInput.value.trim();
-    if (!prompt) return;
+      const prompt = chatInput ? chatInput.value.trim() : '';
+      if (!prompt) return;
 
-    // Clear input
-    chatInput.value = '';
-    chatInput.style.height = 'auto';
+      // Clear input
+      if (chatInput) {
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+      }
 
-    // If starting a new conversation, create the ID first
-    if (!activeConversationId) {
-      activeConversationId = generateId();
-      const newConv = {
-        id: activeConversationId,
-        title: prompt.substring(0, 30) + (prompt.length > 30 ? '...' : ''),
-        messages: []
-      };
-      conversations.unshift(newConv);
-      localStorage.setItem('ag_conversations', JSON.stringify(conversations));
-      
-      welcomeScreen.style.display = 'none';
-      messagesList.style.display = 'flex';
-      messagesList.innerHTML = '';
-      headerChatTitle.textContent = newConv.title;
-      renderConversationsList();
-    }
+      // Safeguard conversation state
+      if (!activeConversationId) {
+        activeConversationId = generateId();
+      }
 
-    // Append User Message UI
-    appendMessageUI('user', prompt);
-    scrollToBottom();
-
-    // Save user message to memory
-    const activeConv = conversations.find(c => c.id === activeConversationId);
-    activeConv.messages.push({ role: 'user', content: prompt });
-    localStorage.setItem('ag_conversations', JSON.stringify(conversations));
-
-    // Disable Form input and submit
-    isStreaming = true;
-    submitBtn.disabled = true;
-    chatInput.disabled = true;
-    streamIndicator.style.display = 'flex';
-    scrollToBottom();
-
-    // Prepare Assistant bubble in UI
-    const assistantBubble = appendMessageUI('assistant', '');
-    let assistantText = '';
-
-    // Setup Server-Sent Events stream URL
-    const continueLatest = continueToggle.checked;
-    
-    // Construct the stream endpoint with query parameters
-    let url = `/api/stream?prompt=${encodeURIComponent(prompt)}`;
-    if (continueLatest) {
-      url += '&continue=true';
-    }
-    
-    // Note: If they have multiple messages in this conversation, we can optionally pass the conversation ID.
-    // In our backend, passing conversationId resumes that exact context, but `--continue` resumes the latest session.
-    // Since `--continue` is simpler and standard in the CLI, we prioritize that.
-
-    const eventSource = new EventSource(url);
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.text) {
-          assistantText += data.text;
-          assistantBubble.innerHTML = marked.parse(assistantText);
-          Prism.highlightAllUnder(assistantBubble);
-          scrollToBottom();
+      let activeConv = conversations.find(c => c.id === activeConversationId);
+      if (!activeConv) {
+        activeConv = {
+          id: activeConversationId,
+          title: prompt.substring(0, 30) + (prompt.length > 30 ? '...' : ''),
+          messages: []
+        };
+        conversations.unshift(activeConv);
+        localStorage.setItem('ag_conversations', JSON.stringify(conversations));
+        
+        if (welcomeScreen) welcomeScreen.style.display = 'none';
+        if (messagesList) {
+          messagesList.style.display = 'flex';
+          messagesList.innerHTML = '';
         }
-      } catch (err) {
-        console.error('Failed to parse SSE data:', err);
+        if (headerChatTitle) headerChatTitle.textContent = activeConv.title;
+        renderConversationsList();
       }
-    };
 
-    eventSource.addEventListener('system', (event) => {
-      // Handle system outputs or diagnostic stderr lines
-      console.log('Remote system log:', event.data);
-    });
+      // Append User Message UI
+      appendMessageUI('user', prompt);
+      scrollToBottom();
 
-    eventSource.addEventListener('done', () => {
-      finishStream();
-    });
-
-    eventSource.onerror = (err) => {
-      console.error('EventSource connection error:', err);
-      if (assistantText === '') {
-        assistantBubble.innerHTML = '<span style="color: var(--error);">Error connecting to Antigravity CLI. Check system status settings.</span>';
-      }
-      finishStream();
-    };
-
-    function finishStream() {
-      eventSource.close();
-      
-      // Save assistant message to memory
-      activeConv.messages.push({ role: 'assistant', content: assistantText });
+      // Save user message to memory
+      activeConv.messages.push({ role: 'user', content: prompt });
       localStorage.setItem('ag_conversations', JSON.stringify(conversations));
 
-      // Re-enable UI controls
-      isStreaming = false;
-      submitBtn.disabled = false;
-      chatInput.disabled = false;
-      streamIndicator.style.display = 'none';
-      chatInput.focus();
-    }
-  });
+      // Disable Form input and submit
+      isStreaming = true;
+      if (submitBtn) submitBtn.disabled = true;
+      if (chatInput) chatInput.disabled = true;
+      if (streamIndicator) streamIndicator.style.display = 'flex';
+      scrollToBottom();
+
+      // Prepare Assistant bubble in UI
+      const assistantBubble = appendMessageUI('assistant', '');
+      let assistantText = '';
+
+      // Setup Server-Sent Events stream URL
+      const continueLatest = continueToggle ? continueToggle.checked : true;
+      
+      let url = `/api/stream?prompt=${encodeURIComponent(prompt)}`;
+      if (continueLatest) {
+        url += '&continue=true';
+      }
+
+      let eventSource;
+      try {
+        eventSource = new EventSource(url);
+      } catch (err) {
+        console.error('Failed to create EventSource:', err);
+        if (assistantBubble) {
+          assistantBubble.innerHTML = '<span style="color: var(--error);">Failed to initiate connection. Check network status.</span>';
+        }
+        finishStream();
+        return;
+      }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.text && assistantBubble) {
+            assistantText += data.text;
+            assistantBubble.innerHTML = renderMarkdown(assistantText);
+            if (typeof Prism !== 'undefined' && Prism.highlightAllUnder) {
+              Prism.highlightAllUnder(assistantBubble);
+            }
+            scrollToBottom();
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE data:', err);
+        }
+      };
+
+      eventSource.addEventListener('system', (event) => {
+        console.log('Remote system log:', event.data);
+      });
+
+      eventSource.addEventListener('done', () => {
+        finishStream();
+      });
+
+      eventSource.onerror = (err) => {
+        console.error('EventSource connection error:', err);
+        if (assistantText === '' && assistantBubble) {
+          assistantBubble.innerHTML = '<span style="color: var(--error);">Error connecting to Antigravity CLI. Check system status settings.</span>';
+        }
+        finishStream();
+      };
+
+      function finishStream() {
+        if (eventSource) {
+          eventSource.close();
+        }
+        
+        // Save assistant message to memory safely
+        const freshConv = conversations.find(c => c.id === activeConversationId);
+        if (freshConv) {
+          freshConv.messages.push({ role: 'assistant', content: assistantText });
+          localStorage.setItem('ag_conversations', JSON.stringify(conversations));
+        }
+
+        // Re-enable UI controls
+        isStreaming = false;
+        if (submitBtn) submitBtn.disabled = false;
+        if (chatInput) {
+          chatInput.disabled = false;
+          chatInput.focus();
+        }
+        if (streamIndicator) streamIndicator.style.display = 'none';
+      }
+    });
+  }
 
   // Listen to Enter key to submit, but Shift+Enter to newline
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      chatForm.dispatchEvent(new Event('submit'));
-    }
-  });
+  if (chatInput && chatForm) {
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        chatForm.dispatchEvent(new Event('submit'));
+      }
+    });
+  }
 
   // Initial runs
   checkHealth();
