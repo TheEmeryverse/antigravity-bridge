@@ -88,6 +88,7 @@ app.use((req, res, next) => {
       method: req.method,
       headers: {
         ...req.headers,
+        'host': `localhost:${TUNNEL_PORT}`,
         'accept-encoding': 'identity' // Avoid compression to allow text replacement
       }
     };
