@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  antigravity-bridge:
+    build: .
+    container_name: antigravity-bridge
+    ports:
+      - "3333:3333"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override the key path to match the container's path
+      - AG_SSH_KEY_PATH=/root/.ssh/id_ed25519_antigravity
+      - PORT=3333
+    volumes:
+      # Mount the SSH private key from the host into the container (read-only)
+      - ~/.ssh/id_ed25519_antigravity:/root/.ssh/id_ed25519_antigravity:ro

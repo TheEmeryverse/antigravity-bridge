@@ -1,0 +1,18 @@
+{
+  "name": "antigravity-bridge",
+  "version": "1.0.0",
+  "description": "A web bridge to query and stream responses from Antigravity 2.0 (agy CLI) on a remote Mac Mini",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "private": true
+}
