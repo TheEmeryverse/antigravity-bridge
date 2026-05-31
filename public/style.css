@@ -738,7 +738,7 @@ textarea::placeholder {
 .form-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid hsla(220, 20%, 30%, 0.15);
