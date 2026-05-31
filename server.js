@@ -138,6 +138,42 @@ window.nativeStorage = {
     };
   }
 };
+
+window.electronNative = {
+  zoomLevel: 0, // Default to 0 (100% zoom) to prevent the 120% default fallback zoom
+  getZoomLevel() {
+    return this.zoomLevel;
+  },
+  zoomIn() {
+    this.zoomLevel = Math.min(this.zoomLevel + 1, 8);
+    this.applyZoom();
+  },
+  zoomOut() {
+    this.zoomLevel = Math.max(this.zoomLevel - 1, -8);
+    this.applyZoom();
+  },
+  resetZoom() {
+    this.zoomLevel = 0;
+    this.applyZoom();
+  },
+  applyZoom() {
+    const zoomFactor = Math.pow(1.2, this.zoomLevel);
+    document.documentElement.style.zoom = zoomFactor;
+    window.dispatchEvent(new Event('resize'));
+  },
+  minimize() {},
+  maximize() {},
+  unmaximize() {},
+  isMaximized() { return false; },
+  close() {},
+  toggleDevTools() {},
+  openExternal(url) {
+    window.open(url, '_blank');
+  }
+};
+
+// Initialize default zoom
+window.electronNative.applyZoom();
 </script>
 `;
         const injectedHtml = data.replace('<head>', '<head>' + mockScript);
