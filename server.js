@@ -79,7 +79,7 @@ app.get('/api/health', (req, res) => {
  * - projectPath: (Optional) Path of remote workspace directory
  */
 app.get('/api/stream', (req, res) => {
-  const { prompt, conversationId, continue: continueLatest, projectPath } = req.query;
+  const { prompt, conversationId, continue: continueLatest, projectPath, model } = req.query;
   
   if (!prompt) {
     return res.status(400).json({ error: 'Missing prompt parameter' });
@@ -95,6 +95,9 @@ app.get('/api/stream', (req, res) => {
   const args = [];
   if (projectPath) {
     args.push('--add-dir', projectPath);
+  }
+  if (model) {
+    args.push('--model', model);
   }
   args.push('--print');
   if (conversationId) {
@@ -240,6 +243,61 @@ app.post('/api/projects', (req, res) => {
       res.status(500).json({ error: 'Failed to create local project', details: e.message });
     }
   }
+});
+
+/**
+ * GET /api/quota
+ * Queries the agy CLI for active quotas/limits and returns the response.
+ */
+app.get('/api/quota', (req, res) => {
+  const prompt = '/quota';
+  const args = ['--print'];
+
+  let child;
+  
+  if (CONNECTION_MODE === 'ssh') {
+    const rubyWrapper = `ruby -rjson -e 'c=JSON.parse(STDIN.read); exec("${CLI_PATH}", *(c["args"]+[c["prompt"]]))'`;
+    const sshArgs = [
+      '-i', SSH_KEY_PATH,
+      '-o', 'StrictHostKeyChecking=no',
+      `${SSH_USER}@${SSH_HOST}`,
+      rubyWrapper
+    ];
+    child = spawn('ssh', sshArgs);
+    
+    // Write JSON payload and close stdin
+    child.stdin.write(JSON.stringify({ args, prompt }));
+    child.stdin.end();
+  } else {
+    // Local mode: Execute directly
+    child = spawn(CLI_PATH, [...args, prompt]);
+    child.stdin.end();
+  }
+
+  let output = '';
+  let errorOutput = '';
+
+  child.stdout.on('data', (data) => {
+    output += data.toString();
+  });
+
+  child.stderr.on('data', (data) => {
+    errorOutput += data.toString();
+  });
+
+  child.on('close', (code) => {
+    if (code === 0) {
+      res.json({ quotaMarkdown: output.trim() });
+    } else {
+      console.error(`agy quota process failed with code ${code}: ${errorOutput}`);
+      res.status(500).json({ error: 'Failed to fetch quotas', details: errorOutput.trim() });
+    }
+  });
+
+  child.on('error', (err) => {
+    console.error('Failed to start agy quota child process:', err);
+    res.status(500).json({ error: 'Failed to start quota query process', details: err.message });
+  });
 });
 
 // Configuration config fetcher for frontend

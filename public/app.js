@@ -76,6 +76,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalCreateProjectBtn = document.getElementById('modalCreateProjectBtn');
   const modalGlobalModeBtn = document.getElementById('modalGlobalModeBtn');
 
+  // Model Selector DOM Elements & Initialization
+  const modelSelector = document.getElementById('modelSelector');
+  let activeModel = localStorage.getItem('ag_active_model') || 'MODEL_PLACEHOLDER_M20';
+  if (modelSelector) {
+    modelSelector.value = activeModel;
+    modelSelector.addEventListener('change', () => {
+      activeModel = modelSelector.value;
+      localStorage.setItem('ag_active_model', activeModel);
+      console.log(`Active model changed to: ${activeModel}`);
+    });
+  }
+
+  // Quotas Modal DOM Elements
+  const viewQuotasBtn = document.getElementById('viewQuotasBtn');
+  const quotasModal = document.getElementById('quotasModal');
+  const closeQuotasModal = document.getElementById('closeQuotasModal');
+  const quotaLoading = document.getElementById('quotaLoading');
+  const quotaError = document.getElementById('quotaError');
+  const quotaErrorText = document.getElementById('quotaErrorText');
+  const quotaDisplay = document.getElementById('quotaDisplay');
+
   // Configure Marked for Markdown rendering safely
   if (typeof marked !== 'undefined' && marked.setOptions) {
     try {
@@ -754,6 +775,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (activeProjectPath) {
         url += `&projectPath=${encodeURIComponent(activeProjectPath)}`;
       }
+      if (activeModel) {
+        url += `&model=${encodeURIComponent(activeModel)}`;
+      }
 
       let eventSource;
       try {
@@ -835,6 +859,64 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         chatForm.dispatchEvent(new Event('submit'));
+      }
+    });
+  }
+
+  // Quota Modal Logic
+  if (viewQuotasBtn && quotasModal) {
+    viewQuotasBtn.addEventListener('click', () => {
+      // Open modal
+      quotasModal.style.display = 'flex';
+      
+      // Reset modal UI state
+      if (quotaLoading) quotaLoading.style.display = 'flex';
+      if (quotaError) quotaError.style.display = 'none';
+      if (quotaDisplay) {
+        quotaDisplay.style.display = 'none';
+        quotaDisplay.innerHTML = '';
+      }
+      
+      // Fetch quotas from API
+      fetch('/api/quota')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Server returned HTTP ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (quotaLoading) quotaLoading.style.display = 'none';
+          if (quotaDisplay && data.quotaMarkdown) {
+            quotaDisplay.innerHTML = renderMarkdown(data.quotaMarkdown);
+            quotaDisplay.style.display = 'block';
+            
+            // Re-render any icons inside the markdown if needed
+            updateIcons();
+          } else {
+            throw new Error('Response did not contain quotaMarkdown data');
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load quotas:', err);
+          if (quotaLoading) quotaLoading.style.display = 'none';
+          if (quotaErrorText) {
+            quotaErrorText.textContent = `Failed to retrieve quota statistics: ${err.message}`;
+          }
+          if (quotaError) quotaError.style.display = 'flex';
+        });
+    });
+  }
+
+  if (closeQuotasModal && quotasModal) {
+    closeQuotasModal.addEventListener('click', () => {
+      quotasModal.style.display = 'none';
+    });
+
+    // Close on overlay click
+    quotasModal.addEventListener('click', (e) => {
+      if (e.target === quotasModal) {
+        quotasModal.style.display = 'none';
       }
     });
   }

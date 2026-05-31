@@ -65,6 +65,11 @@
       </div>
       
       <div class="sidebar-footer">
+        <button class="view-quotas-btn" id="viewQuotasBtn">
+          <i data-lucide="bar-chart-2"></i>
+          <span>View API Quotas</span>
+        </button>
+
         <div class="status-panel">
           <div class="status-indicator">
             <span class="status-dot status-checking" id="statusDot"></span>
@@ -105,6 +110,19 @@
           <button class="icon-btn theme-toggle" id="themeToggle" title="Toggle Theme" style="display: none;">
             <i data-lucide="sun"></i>
           </button>
+          
+          <div class="model-select-wrapper">
+            <i data-lucide="sparkles" class="model-select-icon"></i>
+            <select class="model-select" id="modelSelector" aria-label="Select AI model">
+              <option value="MODEL_PLACEHOLDER_M20" selected>Gemini 3.5 Flash</option>
+              <option value="MODEL_GOOGLE_GEMINI_FOR_GOOGLE_2_5_PRO">Gemini 2.5 Pro</option>
+              <option value="MODEL_GOOGLE_GEMINI_2_5_FLASH_THINKING">Gemini 2.5 Thinking</option>
+              <option value="MODEL_CLAUDE_4_SONNET">Claude 4 Sonnet</option>
+              <option value="MODEL_XAI_GROK_3">Grok 3</option>
+              <option value="MODEL_QWEN_2_5_72B_INSTRUCT">Qwen 2.5 72B</option>
+            </select>
+          </div>
+
           <div class="active-connection-pill">
             <span class="pulse-ring"></span>
             <span class="pill-text">Antigravity Remote</span>
@@ -288,6 +306,38 @@
             <button class="danger-btn-outline" id="modalGlobalModeBtn">
               <i data-lucide="globe"></i> Switch to Global Mode (No Workspace)
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quotas Modal -->
+    <div class="modal-overlay" id="quotasModal">
+      <div class="modal modal-large">
+        <div class="modal-header">
+          <h2>Active API Quotas</h2>
+          <button class="icon-btn close-modal-btn" id="closeQuotasModal" aria-label="Close modal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="quota-content-wrapper">
+            <!-- Loading state -->
+            <div class="quota-loading" id="quotaLoading">
+              <div class="glowing-spinner"></div>
+              <p>Querying remote Antigravity instance for quota details...</p>
+            </div>
+            
+            <!-- Error state -->
+            <div class="quota-error alert-danger" id="quotaError" style="display: none;">
+              <i data-lucide="alert-triangle"></i>
+              <p id="quotaErrorText">Failed to retrieve quota statistics. Please check remote server connection.</p>
+            </div>
+            
+            <!-- Content state -->
+            <div class="quota-display markdown-body" id="quotaDisplay" style="display: none;">
+              <!-- Rendered markdown table will be injected here -->
+            </div>
           </div>
         </div>
       </div>
