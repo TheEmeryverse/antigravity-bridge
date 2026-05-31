@@ -17,6 +17,7 @@ const SSH_HOST = process.env.AG_SSH_HOST || '127.0.0.1';
 const SSH_USER = process.env.AG_SSH_USER || 'username';
 const SSH_KEY_PATH = process.env.AG_SSH_KEY_PATH || path.join(process.env.HOME || '', '.ssh/id_ed25519_antigravity');
 const CLI_PATH = process.env.AG_CLI_PATH || 'agy';
+const PROJECTS_DIR = process.env.AG_PROJECTS_DIR || '~/Projects';
 
 console.log('Antigravity Bridge Starting...');
 console.log(`- Connection Mode: ${CONNECTION_MODE}`);
@@ -25,6 +26,7 @@ if (CONNECTION_MODE === 'ssh') {
   console.log(`- SSH Key Path: ${SSH_KEY_PATH}`);
 }
 console.log(`- Remote/Local CLI Path: ${CLI_PATH}`);
+console.log(`- Projects Directory: ${PROJECTS_DIR}`);
 
 // Verify SSH Key exists if in SSH mode
 if (CONNECTION_MODE === 'ssh' && !fs.existsSync(SSH_KEY_PATH)) {
@@ -74,9 +76,10 @@ app.get('/api/health', (req, res) => {
  * - prompt: The message/prompt to send
  * - conversationId: (Optional) ID of previous conversation
  * - continue: (Optional) "true" to continue the latest session
+ * - projectPath: (Optional) Path of remote workspace directory
  */
 app.get('/api/stream', (req, res) => {
-  const { prompt, conversationId, continue: continueLatest } = req.query;
+  const { prompt, conversationId, continue: continueLatest, projectPath } = req.query;
   
   if (!prompt) {
     return res.status(400).json({ error: 'Missing prompt parameter' });
@@ -89,7 +92,11 @@ app.get('/api/stream', (req, res) => {
   res.flushHeaders();
 
   // Construct CLI arguments
-  const args = ['--print'];
+  const args = [];
+  if (projectPath) {
+    args.push('--add-dir', projectPath);
+  }
+  args.push('--print');
   if (conversationId) {
     args.push('--conversation', conversationId);
   } else if (continueLatest === 'true') {
@@ -129,7 +136,6 @@ app.get('/api/stream', (req, res) => {
   child.stderr.on('data', (data) => {
     const errorText = data.toString();
     console.error(`agy stderr: ${errorText}`);
-    // Only send non-debug lines to frontend if desired, or send as a system log event
     res.write(`event: system\ndata: ${JSON.stringify({ log: errorText })}\n\n`);
   });
 
@@ -152,6 +158,88 @@ app.get('/api/stream', (req, res) => {
     console.log('Client disconnected, killing child process');
     child.kill();
   });
+});
+
+/**
+ * GET /api/projects
+ * Lists subdirectories in the configured projects directory.
+ */
+app.get('/api/projects', (req, res) => {
+  if (CONNECTION_MODE === 'ssh') {
+    const rubyCmd = `ruby -rfileutils -rjson -e 'begin; dir=File.expand_path("${PROJECTS_DIR}"); FileUtils.mkdir_p(dir) unless Dir.exist?(dir); Dir.chdir(dir); puts Dir.glob("*/").map{|d| {name: d.chomp("/"), path: File.expand_path(d)}}.to_json; rescue => e; puts([].to_json); end'`;
+    const child = spawn('ssh', [
+      '-i', SSH_KEY_PATH,
+      '-o', 'StrictHostKeyChecking=no',
+      `${SSH_USER}@${SSH_HOST}`,
+      rubyCmd
+    ]);
+    let output = '';
+    child.stdout.on('data', data => output += data.toString());
+    child.on('close', code => {
+      try {
+        res.json(JSON.parse(output.trim() || '[]'));
+      } catch (e) {
+        res.status(500).json({ error: 'Failed to list remote projects', details: output });
+      }
+    });
+  } else {
+    const resolvedPath = PROJECTS_DIR.replace(/^~/, process.env.HOME || '');
+    try {
+      if (!fs.existsSync(resolvedPath)) {
+        fs.mkdirSync(resolvedPath, { recursive: true });
+      }
+      const items = fs.readdirSync(resolvedPath, { withFileTypes: true })
+        .filter(item => item.isDirectory())
+        .map(item => ({
+          name: item.name,
+          path: path.join(resolvedPath, item.name)
+        }));
+      res.json(items);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to list local projects', details: e.message });
+    }
+  }
+});
+
+/**
+ * POST /api/projects
+ * Creates a new project directory.
+ */
+app.post('/api/projects', (req, res) => {
+  const { name } = req.body;
+  if (!name || typeof name !== 'string' || name.includes('/') || name.includes('..') || name.trim() === '') {
+    return res.status(400).json({ error: 'Invalid project name' });
+  }
+
+  if (CONNECTION_MODE === 'ssh') {
+    const rubyCmd = `ruby -rfileutils -rjson -e 'begin; c=JSON.parse(STDIN.read); dir=File.expand_path(File.join("${PROJECTS_DIR}", c["name"])); FileUtils.mkdir_p(dir); puts({status: "ok", path: dir}.to_json); rescue => e; puts({error: e.message}.to_json); end'`;
+    const child = spawn('ssh', [
+      '-i', SSH_KEY_PATH,
+      '-o', 'StrictHostKeyChecking=no',
+      `${SSH_USER}@${SSH_HOST}`,
+      rubyCmd
+    ]);
+    child.stdin.write(JSON.stringify({ name }));
+    child.stdin.end();
+    let output = '';
+    child.stdout.on('data', data => output += data.toString());
+    child.on('close', code => {
+      try {
+        res.json(JSON.parse(output.trim() || '{"error":"failed"}'));
+      } catch (e) {
+        res.status(500).json({ error: 'Failed to create remote project', details: output });
+      }
+    });
+  } else {
+    const resolvedPath = PROJECTS_DIR.replace(/^~/, process.env.HOME || '');
+    const newProjPath = path.join(resolvedPath, name);
+    try {
+      fs.mkdirSync(newProjPath, { recursive: true });
+      res.json({ status: 'ok', path: newProjPath });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to create local project', details: e.message });
+    }
+  }
 });
 
 // Configuration config fetcher for frontend

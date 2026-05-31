@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   let isStreaming = false;
+  let activeProjectPath = null;
 
   // DOM Elements
   const sidebar = document.getElementById('sidebar');
@@ -32,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeSidebar = document.getElementById('closeSidebar');
   const newChatBtn = document.getElementById('newChatBtn');
   const historyList = document.getElementById('historyList');
+  const projectsList = document.getElementById('projectsList');
+  const createProjectBtn = document.getElementById('createProjectBtn');
   const statusDot = document.getElementById('statusDot');
   const statusLabel = document.getElementById('statusLabel');
   const refreshStatusBtn = document.getElementById('refreshStatusBtn');
@@ -229,6 +232,95 @@ document.addEventListener('DOMContentLoaded', () => {
     updateIcons();
   }
 
+  // Fetch and Render Projects List
+  async function fetchProjects() {
+    if (!projectsList) return;
+    projectsList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">Loading...</div>';
+
+    try {
+      const response = await fetch('/api/projects');
+      if (!response.ok) throw new Error('Failed to load projects');
+      const projects = await response.json();
+
+      projectsList.innerHTML = '';
+      if (projects.length === 0) {
+        projectsList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">No projects found</div>';
+        return;
+      }
+
+      projects.forEach(proj => {
+        const item = document.createElement('div');
+        item.className = `project-item ${proj.path === activeProjectPath ? 'active' : ''}`;
+        item.dataset.path = proj.path;
+
+        const icon = document.createElement('span');
+        icon.className = 'project-icon';
+        icon.innerHTML = '<i data-lucide="folder" style="width: 16px; height: 16px;"></i>';
+
+        const name = document.createElement('span');
+        name.className = 'project-name';
+        name.textContent = proj.name;
+
+        item.appendChild(icon);
+        item.appendChild(name);
+
+        item.addEventListener('click', () => {
+          // Toggle project selection
+          if (activeProjectPath === proj.path) {
+            activeProjectPath = null;
+            item.classList.remove('active');
+          } else {
+            activeProjectPath = proj.path;
+            // Clear other active projects
+            document.querySelectorAll('.project-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+          }
+          updateIcons();
+        });
+
+        projectsList.appendChild(item);
+      });
+    } catch (e) {
+      console.error(e);
+      projectsList.innerHTML = '<div style="text-align: center; color: var(--error); font-size: 0.8rem; padding: 10px 0;">Error loading projects</div>';
+    }
+
+    updateIcons();
+  }
+
+  // Create Project Click Event
+  if (createProjectBtn) {
+    createProjectBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const name = prompt('Enter new project directory name:');
+      if (!name) return;
+
+      const trimmedName = name.trim();
+      if (trimmedName === '') return;
+
+      try {
+        const response = await fetch('/api/projects', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name: trimmedName })
+        });
+        const data = await response.json();
+        if (response.ok && data.status === 'ok') {
+          // Select the newly created project automatically
+          activeProjectPath = data.path;
+          fetchProjects();
+        } else {
+          alert(`Failed to create project: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error('Error creating project:', err);
+        alert('Failed to create project. Check console for details.');
+      }
+    });
+  }
+
   // Delete Conversation
   function deleteConversation(id) {
     conversations = conversations.filter(c => c.id !== id);
@@ -395,6 +487,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (continueLatest) {
         url += '&continue=true';
       }
+      if (activeProjectPath) {
+        url += `&projectPath=${encodeURIComponent(activeProjectPath)}`;
+      }
 
       let eventSource;
       try {
@@ -477,4 +572,5 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial runs
   checkHealth();
   renderConversationsList();
+  fetchProjects();
 });
