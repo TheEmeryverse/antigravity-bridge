@@ -77,7 +77,87 @@ proxy.on('error', (err, req, res) => {
   }
 });
 
-// Redirect all HTTP traffic through the proxy
+// Intercept HTML requests and inject window.nativeStorage mock
+app.use((req, res, next) => {
+  const acceptHeader = req.headers.accept || '';
+  if (acceptHeader.includes('text/html')) {
+    const options = {
+      hostname: '127.0.0.1',
+      port: TUNNEL_PORT,
+      path: req.url,
+      method: req.method,
+      headers: {
+        ...req.headers,
+        'accept-encoding': 'identity' // Avoid compression to allow text replacement
+      }
+    };
+
+    const proxyReq = http.request(options, (proxyRes) => {
+      if (proxyRes.statusCode !== 200) {
+        res.status(proxyRes.statusCode);
+        proxyRes.pipe(res);
+        return;
+      }
+
+      let data = '';
+      proxyRes.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      proxyRes.on('end', () => {
+        const mockScript = `
+<script>
+window.nativeStorage = {
+  async getItems() {
+    const items = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      items[key] = localStorage.getItem(key);
+    }
+    return items;
+  },
+  async updateItems(changes) {
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null || value === undefined) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, value);
+      }
+    }
+    if (this._listener) {
+      this._listener(changes);
+    }
+  },
+  onChanged(callback) {
+    this._listener = callback;
+    return () => {
+      if (this._listener === callback) {
+        this._listener = null;
+      }
+    };
+  }
+};
+</script>
+`;
+        const injectedHtml = data.replace('<head>', '<head>' + mockScript);
+        res.setHeader('content-type', 'text/html; charset=utf-8');
+        res.send(injectedHtml);
+      });
+    });
+
+    proxyReq.on('error', (err) => {
+      console.error('Error fetching HTML from backend:', err);
+      // Fallback to normal proxy in case backend isn't ready
+      proxy.web(req, res);
+    });
+
+    proxyReq.end();
+  } else {
+    next();
+  }
+});
+
+// Redirect all other HTTP traffic through the proxy
 app.all('*', (req, res) => {
   proxy.web(req, res);
 });
