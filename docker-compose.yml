@@ -15,4 +15,4 @@ services:
       - PORT=3333
     volumes:
       # Mount the SSH private key from the host into the container (read-only)
-      - ~/.ssh/id_ed25519_antigravity:/root/.ssh/id_ed25519_antigravity:ro
+      - /home/hudson/.ssh/id_ed25519_antigravity:/root/.ssh/id_ed25519_antigravity:ro
