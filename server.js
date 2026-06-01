@@ -108,6 +108,12 @@ app.use((req, res, next) => {
       proxyRes.on('end', () => {
         const mockScript = `
 <script>
+// Early theme loader to prevent visual flash
+(function() {
+  const savedTheme = localStorage.getItem('ag_active_theme') || 'slate-minimalist';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+})();
+
 window.nativeStorage = {
   async getItems() {
     const items = {};
@@ -175,7 +181,7 @@ window.electronNative = {
 // Initialize default zoom
 window.electronNative.applyZoom();
 
-// Mobile Layout Optimization Helpers
+// Mobile Layout & Theme Selector Injections
 (function() {
   const isMobile = () => window.innerWidth < 768;
 
@@ -194,27 +200,151 @@ window.electronNative.applyZoom();
     }, 200);
   }
 
-  // 2. Click outside sidebar to close drawer on mobile
-  document.addEventListener('click', (e) => {
-    if (isMobile()) {
-      const sidebar = document.querySelector('[aria-label="Sidebar"]');
-      const toggleButton = document.querySelector('[data-testid="sidebar-toggle"]');
-      if (sidebar && toggleButton) {
-        const sidebarParent = sidebar.closest('.flex-grow') || sidebar.parentElement;
-        // If sidebar is open and click was outside sidebar and outside toggle button
-        if (sidebarParent && sidebarParent.offsetWidth > 0 && !sidebar.contains(e.target) && !toggleButton.contains(e.target)) {
-          toggleButton.click();
-        }
+  // 2. Monitor mobile sidebar open/closed state & control backdrop
+  let backdrop = null;
+  const updateMobileSidebarState = () => {
+    const sidebar = document.querySelector('[aria-label="Sidebar"]');
+    if (!sidebar) return;
+    
+    const sidebarParent = sidebar.closest('.flex-grow') || sidebar.parentElement;
+    if (!sidebarParent) return;
+
+    // Detect if sidebar is open based on its inline width (React collapsible splits set style.width = "0px")
+    const isClosed = sidebarParent.style.width === '0px' || window.getComputedStyle(sidebarParent).display === 'none';
+    const isOpen = !isClosed;
+
+    if (window.innerWidth < 768) {
+      document.documentElement.setAttribute('data-sidebar-open', isOpen ? 'true' : 'false');
+      
+      // Manage backdrop
+      if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.id = 'mobile-sidebar-backdrop';
+        backdrop.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 9998; opacity: 0; pointer-events: none; transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);';
+        document.body.appendChild(backdrop);
+        backdrop.onclick = () => {
+          const toggleButton = document.querySelector('[data-testid="sidebar-toggle"]');
+          if (toggleButton) toggleButton.click();
+        };
       }
+
+      if (isOpen) {
+        backdrop.style.opacity = '1';
+        backdrop.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'hidden';
+      } else {
+        backdrop.style.opacity = '0';
+        backdrop.style.pointerEvents = 'none';
+        document.body.style.overflow = '';
+      }
+    } else {
+      document.documentElement.removeAttribute('data-sidebar-open');
+      if (backdrop) {
+        backdrop.style.opacity = '0';
+        backdrop.style.pointerEvents = 'none';
+      }
+      document.body.style.overflow = '';
     }
-  });
+  };
+  setInterval(updateMobileSidebarState, 150);
+
+  // 3. Inject dynamic theme selector widget into sidebar
+  const injectThemeSelector = () => {
+    if (document.getElementById('theme-selector-container')) return;
+    
+    const sidebar = document.querySelector('[aria-label="Sidebar"]');
+    if (sidebar) {
+      const container = document.createElement('div');
+      container.id = 'theme-selector-container';
+      container.style.cssText = 'padding: 16px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px; margin-top: auto;';
+
+      const title = document.createElement('div');
+      title.innerText = 'APPEARANCE';
+      title.style.cssText = 'font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 4px;';
+
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; gap: 8px; align-items: center; justify-content: space-between;';
+
+      const themes = [
+        { id: 'slate-minimalist', color: 'hsl(220, 60%, 55%)', label: 'Slate' },
+        { id: 'tokyo-dusk', color: 'hsl(270, 60%, 62%)', label: 'Tokyo' },
+        { id: 'sage-spruce', color: 'hsl(150, 45%, 45%)', label: 'Sage' },
+        { id: 'rose-pine', color: 'hsl(12, 45%, 60%)', label: 'Rose' },
+        { id: 'obsidian-amber', color: 'hsl(38, 70%, 55%)', label: 'Amber' }
+      ];
+
+      themes.forEach(t => {
+        const btn = document.createElement('button');
+        btn.className = 'theme-btn';
+        btn.setAttribute('data-theme-id', t.id);
+        btn.title = t.label;
+        btn.style.cssText = 'width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; background-color: ' + t.color + '; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); padding: 0; display: inline-flex; align-items: center; justify-content: center; position: relative;';
+
+        const updateBtnStyles = () => {
+          const currentTheme = document.documentElement.getAttribute('data-theme') || 'slate-minimalist';
+          if (currentTheme === t.id) {
+            btn.style.borderColor = 'var(--text-primary)';
+            btn.style.transform = 'scale(1.15)';
+          } else {
+            btn.style.borderColor = 'transparent';
+            btn.style.transform = 'scale(1)';
+          }
+        };
+
+        updateBtnStyles();
+        document.documentElement.addEventListener('theme-changed', updateBtnStyles);
+
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          document.documentElement.setAttribute('data-theme', t.id);
+          localStorage.setItem('ag_active_theme', t.id);
+          document.documentElement.dispatchEvent(new CustomEvent('theme-changed'));
+        };
+
+        btn.onmouseenter = () => {
+          const currentTheme = document.documentElement.getAttribute('data-theme') || 'slate-minimalist';
+          if (currentTheme !== t.id) {
+            btn.style.borderColor = 'var(--border-color)';
+            btn.style.transform = 'scale(1.08)';
+          }
+        };
+        btn.onmouseleave = () => {
+          const currentTheme = document.documentElement.getAttribute('data-theme') || 'slate-minimalist';
+          if (currentTheme !== t.id) {
+            btn.style.borderColor = 'transparent';
+            btn.style.transform = 'scale(1)';
+          }
+        };
+
+        row.appendChild(btn);
+      });
+
+      container.appendChild(title);
+      container.appendChild(row);
+
+      // Force sidebar wrapper to be flex so theme widget aligns at the bottom
+      sidebar.style.display = 'flex';
+      sidebar.style.flexDirection = 'column';
+      sidebar.style.justifyContent = 'space-between';
+
+      sidebar.appendChild(container);
+    }
+  };
+  setInterval(injectThemeSelector, 1000);
 })();
 </script>
 
 <style>
-/* Material 3 Tonal Color System Overrides */
+/* Material 3 Tonal Color System Overrides - Transitions enabled */
+:root,
+div, aside, main, header, footer, button, a, input, textarea, pre, code {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
 :root {
-  /* Surface elevations */
+  /* Default Theme: Slate Minimalist */
   --bg-primary: hsl(220, 16%, 8%) !important;
   --bg-secondary: hsl(220, 14%, 11%) !important;
   --bg-tertiary: hsl(220, 12%, 16%) !important;
@@ -237,6 +367,82 @@ window.electronNative.applyZoom();
   --success-glow: hsla(152, 55%, 48%, 0.1) !important;
   --warning: hsl(38, 80%, 55%) !important;
   --error: hsl(0, 65%, 55%) !important;
+}
+
+/* Tokyo Dusk (Midnight Lavender) */
+:root[data-theme="tokyo-dusk"] {
+  --bg-primary: hsl(240, 14%, 9%) !important;
+  --bg-secondary: hsl(240, 12%, 12%) !important;
+  --bg-tertiary: hsl(240, 10%, 18%) !important;
+  --bg-glass: hsl(240, 12%, 12%) !important;
+
+  --border-color: hsla(240, 10%, 25%, 0.14) !important;
+
+  --text-primary: hsl(240, 15%, 93%) !important;
+  --text-secondary: hsl(240, 10%, 65%) !important;
+  --text-muted: hsl(240, 8%, 45%) !important;
+
+  --accent: hsl(270, 60%, 62%) !important;
+  --accent-light: hsl(270, 70%, 75%) !important;
+  --accent-gradient: linear-gradient(135deg, hsl(270, 60%, 62%) 0%, hsl(250, 50%, 55%) 100%) !important;
+  --accent-glow: hsla(270, 60%, 62%, 0.15) !important;
+}
+
+/* Sage Spruce (Eucalyptus Forest) */
+:root[data-theme="sage-spruce"] {
+  --bg-primary: hsl(150, 12%, 8%) !important;
+  --bg-secondary: hsl(150, 10%, 11%) !important;
+  --bg-tertiary: hsl(150, 8%, 16%) !important;
+  --bg-glass: hsl(150, 10%, 11%) !important;
+
+  --border-color: hsla(150, 10%, 25%, 0.15) !important;
+
+  --text-primary: hsl(150, 10%, 92%) !important;
+  --text-secondary: hsl(150, 6%, 65%) !important;
+  --text-muted: hsl(150, 6%, 45%) !important;
+
+  --accent: hsl(150, 45%, 45%) !important;
+  --accent-light: hsl(150, 55%, 60%) !important;
+  --accent-gradient: linear-gradient(135deg, hsl(150, 45%, 45%) 0%, hsl(160, 40%, 35%) 100%) !important;
+  --accent-glow: hsla(150, 45%, 45%, 0.12) !important;
+}
+
+/* Rose Pine (Warm Espresso) */
+:root[data-theme="rose-pine"] {
+  --bg-primary: hsl(10, 8%, 9%) !important;
+  --bg-secondary: hsl(10, 6%, 12%) !important;
+  --bg-tertiary: hsl(10, 6%, 17%) !important;
+  --bg-glass: hsl(10, 6%, 12%) !important;
+
+  --border-color: hsla(10, 8%, 25%, 0.15) !important;
+
+  --text-primary: hsl(10, 10%, 93%) !important;
+  --text-secondary: hsl(10, 6%, 66%) !important;
+  --text-muted: hsl(10, 4%, 46%) !important;
+
+  --accent: hsl(12, 45%, 60%) !important;
+  --accent-light: hsl(12, 55%, 70%) !important;
+  --accent-gradient: linear-gradient(135deg, hsl(12, 45%, 60%) 0%, hsl(355, 40%, 52%) 100%) !important;
+  --accent-glow: hsla(12, 45%, 60%, 0.15) !important;
+}
+
+/* Obsidian Onyx (Black Amber) */
+:root[data-theme="obsidian-amber"] {
+  --bg-primary: hsl(0, 0%, 5%) !important;
+  --bg-secondary: hsl(0, 0%, 9%) !important;
+  --bg-tertiary: hsl(0, 0%, 14%) !important;
+  --bg-glass: hsl(0, 0%, 9%) !important;
+
+  --border-color: hsla(0, 0%, 20%, 0.18) !important;
+
+  --text-primary: hsl(0, 0%, 94%) !important;
+  --text-secondary: hsl(0, 0%, 65%) !important;
+  --text-muted: hsl(0, 0%, 45%) !important;
+
+  --accent: hsl(38, 70%, 55%) !important;
+  --accent-light: hsl(38, 80%, 68%) !important;
+  --accent-gradient: linear-gradient(135deg, hsl(38, 70%, 55%) 0%, hsl(30, 65%, 48%) 100%) !important;
+  --accent-glow: hsla(38, 70%, 55%, 0.15) !important;
 }
 
 /* Thin Custom Scrollbars */
@@ -275,6 +481,15 @@ window.electronNative.applyZoom();
     box-shadow: 5px 0 25px rgba(0, 0, 0, 0.5) !important;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     border-right: 1px solid var(--border-color) !important;
+    overscroll-behavior: contain !important;
+  }
+
+  /* Force off-screen when closed and back when open */
+  :root[data-sidebar-open="false"] div.flex.w-full.h-full.flex-row > div:first-child {
+    transform: translateX(-100%) !important;
+  }
+  :root[data-sidebar-open="true"] div.flex.w-full.h-full.flex-row > div:first-child {
+    transform: translateX(0) !important;
   }
 
   /* 3. Right Content Panel (Second child of main split pane) */
@@ -308,6 +523,33 @@ window.electronNative.applyZoom();
   .max-w-3xl, .max-w-2xl {
     max-width: 100% !important;
     width: 100% !important;
+  }
+
+  /* 7. Mobile Safe Area & Input Area Padding */
+  div:has(textarea), form:has(textarea) {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* 8. Larger Touch Target Areas */
+  button, a, [role="button"], [data-testid="sidebar-toggle"] {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  [aria-label="Sidebar"] a, 
+  [aria-label="Sidebar"] button {
+    padding: 12px 16px !important;
+    font-size: 15px !important;
+  }
+
+  /* 9. Scrollable code blocks */
+  pre, code, .code-block {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    white-space: pre !important;
   }
 }
 </style>
