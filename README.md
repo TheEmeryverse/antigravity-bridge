@@ -1,28 +1,28 @@
 # Antigravity Bridge - Official Antigravity 2.0 Web UI Proxy
 
-A secure, high-performance reverse proxy and SSH tunnel bridge designed to expose and serve the official **Google Antigravity 2.0 Web UI** running on a remote Mac Mini, making it accessible on any device on your local network or remotely over a Cloudflare Tunnel.
+A secure, high-performance reverse proxy and SSH tunnel bridge designed to expose and serve the official **Google Antigravity 2.0 Web UI** running on a remote machine, making it accessible on any device on your local network or remotely over a Cloudflare Tunnel.
 
 ```mermaid
 graph TD
     Client[Phone / Tablet / Laptop]
     Cloudflare[Cloudflare Tunnel]
-    Bridge[Antigravity Bridge Proxy on thegrand]
+    Bridge[Antigravity Bridge Proxy on Host]
     SSH[Secure SSH Port-Forward Tunnel]
-    MacMini[Mac Mini / 192.168.1.129]
+    TargetMachine[Target Machine / Remote Host]
     GoServer[Go language_server / localhost:56345]
 
     Client -- HTTPS/WSS --> Cloudflare
     Cloudflare --> Bridge
     Bridge -- http-proxy / HTML Injection --> SSH
-    SSH -- localhost:56345 -> localhost:56345 --> MacMini
-    MacMini --> GoServer
+    SSH -- localhost:56345 -> localhost:56345 --> TargetMachine
+    TargetMachine --> GoServer
 ```
 
 ---
 
 ## 🛠️ Key Features
 
-* **Official Google 2.0 Web UI**: Serves the authentic, compiled SPA (`main.js`, `jetbox.css`) directly from the Mac Mini backend rather than a custom wrapper, giving you access to all native features like multi-agent workspace coordination, trajectory viewer, debug consoles, and extension panels.
+* **Official Google 2.0 Web UI**: Serves the authentic, compiled SPA (`main.js`, `jetbox.css`) directly from the target machine backend rather than a custom wrapper, giving you access to all native features like multi-agent workspace coordination, trajectory viewer, debug consoles, and extension panels.
 * **Integrated SSH Tunneling**: Automatically establishes a secure SSH port-forwarding tunnel (`localhost:56345 -> remote:56345`) on startup, proxying both raw HTTP traffic and WebSocket upgrades (`ws://` / `wss://`) for real-time agent streams.
 * **Electron Bridge Simulation**: 
   - **Native Storage Shim**: Injects a custom JavaScript `window.nativeStorage` implementation into the HTML document, transparently mapping preferences and configuration states to the browser's standard `window.localStorage` (preventing the `No native storage bridge found` crash).
@@ -38,9 +38,9 @@ graph TD
 
 ## 🔑 1. Setup SSH Authorization
 
-The bridge requires SSH key authorization to connect from the proxy host (e.g. `thegrand`) to the target machine (`192.168.1.129`).
+The bridge requires SSH key authorization to connect from the proxy host to the target machine.
 
-1. Generate an SSH key pair on your machine (e.g., at `/home/hudson/.ssh/id_ed25519_antigravity`).
+1. Generate an SSH key pair on your machine (e.g., at `~/.ssh/id_ed25519_antigravity`).
 2. Add the public key to the remote target's `authorized_keys` file:
    ```bash
    mkdir -p ~/.ssh && echo "YOUR_SSH_PUBLIC_KEY" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
@@ -57,10 +57,10 @@ Create a `.env` file in the project root directory:
 AG_CONNECTION_MODE=ssh
 
 # SSH Configuration (target machine where agy runs)
-AG_SSH_HOST=192.168.1.129
-AG_SSH_USER=hudson
+AG_SSH_HOST=your-remote-host-ip
+AG_SSH_USER=your-ssh-username
 # Host path to the private SSH key
-AG_SSH_KEY_PATH=/Users/hudson/.ssh/id_ed25519_antigravity
+AG_SSH_KEY_PATH=/path/to/your/id_ed25519_antigravity
 
 # Port the bridge proxy server will listen on
 PORT=3333
@@ -107,5 +107,5 @@ To access your Antigravity workspace on your phone outside your home network:
 2. Add a public hostname (e.g. `antigravity.yourdomain.com`).
 3. Set the service destination to point to the bridge container:
    - **Type**: `HTTP`
-   - **URL**: `localhost:3333` (or the IP of your bridge host, e.g. `192.168.1.115:3333`).
+   - **URL**: `localhost:3333` (or the IP of your bridge host, e.g. `your-bridge-host-ip:3333`).
 4. Save. The official Antigravity 2.0 Web UI is now securely accessible from any device using your domain name, fully responsive and functional!
