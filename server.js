@@ -212,9 +212,34 @@ window.electronNative.applyZoom();
 </script>
 
 <style>
-/* Material 3 Sophisticated Dark Theme Overrides */
+/* Material 3 Tonal Color System Overrides */
+:root {
+  /* Surface elevations */
+  --bg-primary: hsl(220, 16%, 8%) !important;
+  --bg-secondary: hsl(220, 14%, 11%) !important;
+  --bg-tertiary: hsl(220, 12%, 16%) !important;
+  --bg-glass: hsl(220, 14%, 11%) !important;
 
-/* Global Colors & Scrollbars */
+  --border-color: hsla(220, 10%, 25%, 0.12) !important;
+  --border-glow: transparent !important;
+
+  --text-primary: hsl(220, 15%, 93%) !important;
+  --text-secondary: hsl(220, 10%, 58%) !important;
+  --text-muted: hsl(220, 8%, 40%) !important;
+
+  /* Refined Accent - Slate Blue */
+  --accent: hsl(220, 60%, 55%) !important;
+  --accent-light: hsl(220, 70%, 70%) !important;
+  --accent-gradient: linear-gradient(135deg, hsl(220, 60%, 55%) 0%, hsl(220, 50%, 45%) 100%) !important;
+  --accent-glow: hsla(220, 60%, 55%, 0.15) !important;
+
+  --success: hsl(152, 55%, 48%) !important;
+  --success-glow: hsla(152, 55%, 48%, 0.1) !important;
+  --warning: hsl(38, 80%, 55%) !important;
+  --error: hsl(0, 65%, 55%) !important;
+}
+
+/* Thin Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 5px !important;
   height: 5px !important;
@@ -223,86 +248,11 @@ window.electronNative.applyZoom();
   background: transparent !important;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-radius: 99px !important;
+  background: var(--border-color) !important;
+  border-radius: 10px !important;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
-}
-
-/* Base body background */
-body, html {
-  background-color: #121316 !important;
-  color: #eceff4 !important;
-}
-
-/* Sidebar Overrides (Desktop & Mobile) */
-div.flex.w-full.h-full.flex-row > div:first-child,
-[aria-label="Sidebar"],
-.bg-\[\#0e1318\] {
-  background-color: #16171a !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-/* Main Content Panel */
-div.flex.w-full.h-full.flex-row > div:nth-child(2) {
-  background-color: #121316 !important;
-}
-
-/* Accent Indicators & Highlights */
-.bg-primary, 
-.bg-blue-600, 
-.bg-emerald-600,
-.bg-violet-600 {
-  background-color: #4f73c4 !important; /* Elegant slate blue */
-  color: #ffffff !important;
-}
-
-.text-primary, 
-.text-blue-500, 
-.text-emerald-500,
-.text-violet-500 {
-  color: #7095e0 !important;
-}
-
-/* Interactive elements / Active states in Sidebar */
-[aria-label="Sidebar"] a:hover,
-[aria-label="Sidebar"] button:hover {
-  background-color: rgba(255, 255, 255, 0.04) !important;
-}
-
-/* Textareas and Inputs */
-textarea, input[type="text"], input[type="password"], input[type="email"] {
-  background-color: #1a1b20 !important;
-  color: #eceff4 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 8px !important;
-}
-
-textarea:focus, input[type="text"]:focus {
-  border-color: #7095e0 !important;
-  outline: none !important;
-  box-shadow: 0 0 0 1px #7095e0 !important;
-}
-
-/* Card surfaces (Suggestions, workspaces, modals) */
-.card, 
-.suggestion-card,
-.workspace-status-card,
-.modal,
-div.border.rounded-lg {
-  background-color: #16171a !important;
-  border-color: rgba(255, 255, 255, 0.05) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-/* Ensure high readability for all text on dark surfaces */
-.text-muted, .text-zinc-400, .text-zinc-500, .text-slate-400, .text-slate-500 {
-  color: #9ba3b2 !important;
-}
-
-.text-white, .text-zinc-100, .text-zinc-200, .text-slate-100, .text-slate-200 {
-  color: #eceff4 !important;
+  background: var(--text-muted) !important;
 }
 
 /* CSS overrides for mobile viewports */
@@ -321,10 +271,10 @@ div.border.rounded-lg {
     width: 280px !important; /* Drawer width */
     height: 100% !important;
     z-index: 9999 !important;
-    background-color: #16171a !important; /* Dark sidebar bg */
-    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.4) !important;
+    background-color: var(--bg-secondary) !important; /* Dark sidebar bg */
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.5) !important;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-right: 1px solid var(--border-color) !important;
   }
 
   /* 3. Right Content Panel (Second child of main split pane) */
@@ -334,7 +284,7 @@ div.border.rounded-lg {
     flex-grow: 1 !important;
   }
 
-  /* 4. Hide resizer sashes and drag bars on mobile */
+  /* 4. Hide resizer sashes and drag sashes on mobile */
   .cursor-col-resize, .cursor-row-resize {
     display: none !important;
     width: 0 !important;
