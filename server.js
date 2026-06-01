@@ -174,7 +174,100 @@ window.electronNative = {
 
 // Initialize default zoom
 window.electronNative.applyZoom();
+
+// Mobile Layout Optimization Helpers
+(function() {
+  const isMobile = () => window.innerWidth < 768;
+
+  // 1. Auto-close sidebar on mobile at startup
+  if (isMobile()) {
+    const checkSidebar = setInterval(() => {
+      const toggleButton = document.querySelector('[data-testid="sidebar-toggle"]');
+      const sidebar = document.querySelector('[aria-label="Sidebar"]');
+      if (toggleButton && sidebar) {
+        const sidebarParent = sidebar.closest('.flex-grow') || sidebar.parentElement;
+        if (sidebarParent && sidebarParent.offsetWidth > 0) {
+          toggleButton.click(); // close it
+        }
+        clearInterval(checkSidebar);
+      }
+    }, 200);
+  }
+
+  // 2. Click outside sidebar to close drawer on mobile
+  document.addEventListener('click', (e) => {
+    if (isMobile()) {
+      const sidebar = document.querySelector('[aria-label="Sidebar"]');
+      const toggleButton = document.querySelector('[data-testid="sidebar-toggle"]');
+      if (sidebar && toggleButton) {
+        const sidebarParent = sidebar.closest('.flex-grow') || sidebar.parentElement;
+        // If sidebar is open and click was outside sidebar and outside toggle button
+        if (sidebarParent && sidebarParent.offsetWidth > 0 && !sidebar.contains(e.target) && !toggleButton.contains(e.target)) {
+          toggleButton.click();
+        }
+      }
+    }
+  });
+})();
 </script>
+
+<style>
+/* CSS overrides for mobile viewports */
+@media (max-width: 768px) {
+  /* 1. Main split-pane container */
+  div.flex.w-full.h-full.flex-row {
+    position: relative !important;
+  }
+
+  /* 2. Left Sidebar Panel (First child of main split pane) */
+  div.flex.w-full.h-full.flex-row > div:first-child {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 280px !important; /* Drawer width */
+    height: 100% !important;
+    z-index: 9999 !important;
+    background-color: #0e1318 !important; /* Dark sidebar bg */
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.5) !important;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* 3. Right Content Panel (Second child of main split pane) */
+  div.flex.w-full.h-full.flex-row > div:nth-child(2) {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-grow: 1 !important;
+  }
+
+  /* 4. Hide resizer sashes and drag bars on mobile */
+  .cursor-col-resize, .cursor-row-resize {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  
+  /* 5. Clean up padding/margins for compact mobile layout */
+  .p-10, .p-8, .p-6 {
+    padding: 0.75rem !important;
+  }
+  .px-10, .px-8, .px-6 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+  .py-10, .py-8, .py-6 {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+  
+  /* 6. Adjust input area margins and padding */
+  .max-w-3xl, .max-w-2xl {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+</style>
 `;
         const injectedHtml = data.replace('<head>', '<head>' + mockScript);
         res.setHeader('content-type', 'text/html; charset=utf-8');
