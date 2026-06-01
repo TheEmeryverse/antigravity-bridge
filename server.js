@@ -212,6 +212,140 @@ window.electronNative.applyZoom();
 </script>
 
 <style>
+/* Material 3 Tonal Color System Overrides */
+:root {
+  /* Surface elevations */
+  --bg-primary: hsl(220, 16%, 8%) !important;
+  --bg-secondary: hsl(220, 14%, 11%) !important;
+  --bg-tertiary: hsl(220, 12%, 16%) !important;
+  
+  --background: 220 16% 8% !important;
+  --foreground: 220 15% 93% !important;
+  
+  --card: 220 14% 11% !important;
+  --card-foreground: 220 15% 93% !important;
+  
+  --popover: 220 14% 11% !important;
+  --popover-foreground: 220 15% 93% !important;
+  
+  /* Refined Accent - Slate Blue */
+  --accent: 220 60% 55% !important;
+  --accent-foreground: 220 15% 98% !important;
+  
+  --primary: 220 60% 55% !important;
+  --primary-foreground: 220 15% 98% !important;
+  
+  --muted: 220 12% 16% !important;
+  --muted-foreground: 220 10% 58% !important;
+  
+  --border: 220 10% 25% !important;
+  --input: 220 10% 25% !important;
+  --ring: 220 60% 55% !important;
+}
+
+/* Scrollbars - Thin & Minimal */
+::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+::-webkit-scrollbar-thumb {
+  background: hsla(220, 10%, 30%, 0.3) !important;
+  border-radius: 10px !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsla(220, 10%, 40%, 0.5) !important;
+}
+
+/* Global Page Layout - Surface colors */
+body, html {
+  background-color: hsl(220, 16%, 8%) !important;
+}
+
+/* Main Sidebar (Desktop & General) */
+div.flex.w-full.h-full.flex-row > div:first-child,
+[aria-label="Sidebar"] {
+  background-color: hsl(220, 14%, 11%) !important;
+  border-right: 1px solid hsla(220, 10%, 25%, 0.12) !important;
+}
+
+/* Main Content Panel */
+div.flex.w-full.h-full.flex-row > div:nth-child(2) {
+  background-color: hsl(220, 16%, 8%) !important;
+}
+
+/* Sidebar List Item Hover/Active states */
+[aria-label="Sidebar"] button:hover, 
+[aria-label="Sidebar"] a:hover {
+  background-color: hsl(220, 12%, 16%) !important;
+  transition: all 0.12s ease !important;
+}
+
+[aria-label="Sidebar"] button.active,
+[aria-label="Sidebar"] a.active,
+[aria-label="Sidebar"] [data-active="true"] {
+  background-color: hsla(220, 60%, 55%, 0.1) !important;
+  border-left: 3px solid hsl(220, 60%, 55%) !important;
+}
+
+/* Input Area Overrides */
+textarea, input[type="text"] {
+  background-color: hsl(220, 14%, 11%) !important;
+  border: 1px solid hsla(220, 10%, 25%, 0.12) !important;
+  border-radius: 12px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+textarea:focus, input[type="text"]:focus {
+  border-color: hsl(220, 60%, 55%) !important;
+  box-shadow: 0 0 0 1px hsl(220, 60%, 55%) !important;
+  outline: none !important;
+}
+
+/* Card Overrides */
+.suggestion-card, [data-testid="suggestion-card"],
+.workspace-status-card, .project-item {
+  background-color: hsl(220, 14%, 11%) !important;
+  border: 1px solid hsla(220, 10%, 30%, 0.08) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.suggestion-card:hover, [data-testid="suggestion-card"]:hover,
+.workspace-status-card:hover, .project-item:hover {
+  background-color: hsl(220, 12%, 16%) !important;
+  border-color: hsla(220, 10%, 25%, 0.12) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Active Project / Workspace Card Highlight */
+.workspace-status-card.active, .project-item.active {
+  border-color: hsla(152, 55%, 48%, 0.25) !important;
+  background-color: hsla(152, 55%, 48%, 0.04) !important;
+}
+
+/* Chat Message Bubbles */
+.message-bubble, [data-role="assistant"], [data-role="user"] {
+  padding: 12px 16px !important;
+  border-radius: 16px !important;
+  line-height: 1.65 !important;
+}
+
+[data-role="assistant"] {
+  background-color: hsl(220, 14%, 11%) !important;
+  border-bottom-left-radius: 4px !important;
+  border: 1px solid hsla(220, 10%, 25%, 0.12) !important;
+}
+
+[data-role="user"] {
+  background-color: hsl(220, 60%, 55%) !important;
+  color: white !important;
+  border-bottom-right-radius: 4px !important;
+}
+
 /* CSS overrides for mobile viewports */
 @media (max-width: 768px) {
   /* 1. Main split-pane container */
@@ -228,10 +362,10 @@ window.electronNative.applyZoom();
     width: 280px !important; /* Drawer width */
     height: 100% !important;
     z-index: 9999 !important;
-    background-color: #0e1318 !important; /* Dark sidebar bg */
-    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.5) !important;
+    background-color: hsl(220, 14%, 11%) !important; /* Dark sidebar bg */
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.4) !important;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-right: 1px solid hsla(220, 10%, 25%, 0.12) !important;
   }
 
   /* 3. Right Content Panel (Second child of main split pane) */
